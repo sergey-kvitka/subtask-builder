@@ -41,7 +41,9 @@ public class MainController {
     public ResponseEntity<?> sendTask(@RequestBody TaskDto taskDto) {
         log.info("Sending task... (MS: {})", System.currentTimeMillis());
         if (!subtaskRegistryService.isFree()) return ResponseEntity.status(400).body("В данный момент решается задача");
-        return ResponseEntity.ok(taskPartitionService.splitAndSend(taskDto.getJsonMatrixString(), taskDto.getMatrixSize()));
+        log.info("{}", taskDto.getMatrixSize());
+        int subtaskAmount = taskPartitionService.splitAndSend(taskDto.getJsonMatrixString(), taskDto.getMatrixSize());
+        return ResponseEntity.ok(subtaskAmount);
     }
 
     @GetMapping("/getResult")

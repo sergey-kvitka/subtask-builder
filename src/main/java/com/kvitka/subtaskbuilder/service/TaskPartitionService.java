@@ -5,6 +5,7 @@ import com.kvitka.subtaskbuilder.dto.IndexDto;
 import com.kvitka.subtaskbuilder.dto.SubtaskDto;
 import com.kvitka.subtaskbuilder.model.Base4Number;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskPartitionService {
@@ -29,26 +31,32 @@ public class TaskPartitionService {
     private final RestTemplate restTemplate;
 
     public int splitAndSend(String jsonMatrixString, int matrixSize) {
-
-        int subtasksAmount = subtaskAmountCalculatorService.calculateSubtasksAmount(matrixSize);
-
-        subtaskRegistryService.registerSubtasks(subtasksAmount, matrixSize);
-
-        List<SubtaskDto> subtasks = new ArrayList<>();
-
+        System.out.println(matrixSize);
         Base4Number from = new Base4Number(new byte[]{0});
         byte[] bytesTo = new byte[matrixSize - 1];
         for (int i = 0; i < matrixSize - 1; i++) bytesTo[i] = 3;
         Base4Number to = new Base4Number(bytesTo);
 
-        long subtaskSize = to.subtract(from) / subtasksAmount;
+        long subMatrixAmount = to.subtract(from);
+        log.info("{} {}", to, from);
+
+        int subtasksAmount = (matrixSize <= 8) ? 1
+                : subtaskAmountCalculatorService.calculateSubtasksAmount(subMatrixAmount);
+
+        log.info("Final subtask amount: {}", subtasksAmount);
+
+        long subtaskSize = subMatrixAmount / subtasksAmount;
+
+        subtaskRegistryService.registerSubtasks(subtasksAmount, matrixSize);
+
+        List<SubtaskDto> subtasks = new ArrayList<>();
 
         Base4Number currentFrom = from;
         Base4Number currentTo;
         for (int i = 1; i <= subtasksAmount; i++) {
             currentTo = (i == subtasksAmount) ? to : currentFrom.add(subtaskSize);
             subtasks.add(new SubtaskDto(List.of(currentFrom.toString(), currentTo.toString(), jsonMatrixString)));
-            currentFrom = currentTo.add(1);
+            currentFrom = currentTo;
         }
 
         HttpHeaders headers = new HttpHeaders();
@@ -59,14 +67,17 @@ public class TaskPartitionService {
         return subtasksAmount;
     }
 
+    // ? 1st arg - answer (index), 2nd - sum, 3rd - time (ms)
     public FinalResultDto getResult() {
         if (!subtaskRegistryService.isDone()) throw new RuntimeException();
         List<List<String>> results = subtaskRegistryService.getResults();
-        double max = Long.MIN_VALUE;
+        double max = Double.MIN_VALUE;
         String index = null;
+        boolean init = true;
         for (List<String> result : results) {
             double sum = Double.parseDouble(result.get(1));
-            if (sum > max) {
+            if ((sum > max) || init) {
+                init = false;
                 max = sum;
                 index = result.get(0);
             }
@@ -74,7 +85,6 @@ public class TaskPartitionService {
         return resultFromIndexAndMax(index, max, subtaskRegistryService.getMatrixSize());
     }
 
-    // ? 1st arg - answer (index), 2nd - sum, 3rd - time (ms)
     private FinalResultDto resultFromIndexAndMax(String index, double max, int matrixSize) {
         IndexDto from = new IndexDto(0, 0);
         IndexDto to = new IndexDto(matrixSize - 1, matrixSize - 1);

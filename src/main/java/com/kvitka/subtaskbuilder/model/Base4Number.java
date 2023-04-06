@@ -33,7 +33,7 @@ public class Base4Number extends Number implements Comparable<Base4Number> {
 
     public static Base4Number getByLongValue(long decimalValue) {
         int i = 1;
-        int value = 4;
+        long value = 4;
         while (decimalValue >= value) {
             value *= 4;
             i++;
@@ -158,6 +158,7 @@ public class Base4Number extends Number implements Comparable<Base4Number> {
     }
 
     private static byte[] bytesFromString(String string) {
+        System.out.println("bytesFromString: " + string);
         int length = string.length();
         byte[] result = new byte[length];
         for (int i = 0; i < length; i++) {
